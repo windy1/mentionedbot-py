@@ -17,7 +17,7 @@ class Blacklister:
     reddit = None
 
     def ignore(self, redditor):
-        name = redditor.name
+        name = redditor.name.lower()
         if name in self.blacklist:
             print("'" + name + "' already blacklisted.")
             self.reddit.send_message(name, MentionedBot.NAME, self.ALREADY_IGNORED_NOTIFICATION)
@@ -28,7 +28,7 @@ class Blacklister:
         print("'" + name + "' ignored.")
 
     def unignore(self, redditor):
-        name = redditor.name
+        name = redditor.name.lower()
         if name not in self.blacklist:
             print("'" + name + "' is not blacklisted.")
             self.reddit.send_message(name, MentionedBot.NAME, self.NOT_IGNORED_NOTIFICATION)

@@ -18,7 +18,7 @@ class MentionedBot:
     reddit = None
 
     def notify(self, redditor, comment):
-        username = redditor.name
+        username = redditor.name.lower()
 
         # Make sure the user isn't in the blacklist
         blacklist = util.load_list(util.BLACKLIST_FILE, ',')
