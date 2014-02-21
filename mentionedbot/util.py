@@ -5,6 +5,16 @@ import time
 BLACKLIST_FILE = 'blacklist.txt'
 
 
+def is_ignored(redditor):
+    username = redditor.name.lower()
+    # Make sure the user isn't in the blacklist
+    blacklist = load_list(BLACKLIST_FILE, ',')
+    if username in blacklist:
+        print(username + " is blacklisted.")
+        return True
+    return False
+
+
 def login(user_agent):
     while True:
         try:
