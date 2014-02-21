@@ -6,7 +6,7 @@ class MentionedBot:
     NAME = 'mentioned_bot'
     VERSION = 'dev'
     AUTHOR = '/u/w1ndwak3r'
-    SOURCE_URL = 'https://github.com/windy1/MentionedBot'
+    SOURCE_URL = 'https://github.com/windy1/mentionedbot-py'
     USER_AGENT = 'User-Agent: ' + NAME + '/' + VERSION + ' by ' + AUTHOR
     NOTIFICATION_BODY = ("You have been mentioned in a [comment](%s) by /u/%s.\n\n%s\n\nNote: Replying to this message "
                          "will not send a reply to the original comment.\n\n---\n\n^[[Stop receiving notifications]"
@@ -31,9 +31,9 @@ class MentionedBot:
         author = comment.author.name
         msg = self.NOTIFICATION_BODY % (permalink, author, quote)
 
-        while msg.__len__() > 10000:                                                # Check message size
-            quote_len = quote.__len__()                                             # Get the quote length
-            quote = quote[:quote_len - 2]                                           # Chop off a character
+        while msg.__len__() > 10000:                                   # Check message size
+            quote_len = quote.__len__()                                # Get the quote length
+            quote = quote[:quote_len - 2]                              # Chop off a character
             msg = self.NOTIFICATION_BODY % (permalink, author, quote)  # Reassign the message
 
         print('Sending message to ' + username + '...', end="")
