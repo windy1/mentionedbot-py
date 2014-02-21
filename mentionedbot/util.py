@@ -63,6 +63,6 @@ def quote(body):
 def parse_username(s):
     for i in range(0, s.__len__()):
         ch = s[i]
-        if ch in string.punctuation and ch is not '_':
+        if ch in string.punctuation and ch is not '_' and ch is not '-':
             return s[:i]
     return s

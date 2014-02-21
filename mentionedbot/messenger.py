@@ -4,7 +4,7 @@ import argparse
 
 
 class MentionedBot:
-    NAME = 'mentioned_bot'
+    NAME = 'mentionedbot2'
     VERSION = 'dev'
     AUTHOR = '/u/w1ndwak3r'
     SOURCE_URL = 'https://github.com/windy1/mentionedbot-py'
@@ -163,7 +163,13 @@ class SubmissionMentionedBot(MentionedBot):
                             break
 
                         # notify the redditor
-                        self.notify('submission title', redditor, submission.short_link, title, submission.author.name)
+                        author = submission.author
+                        if author is None:
+                            author = '[deleted]'
+                        else:
+                            author = author.name
+
+                        self.notify('submission title', redditor, submission.short_link, title, author)
 
                 # check self text
                 body = submission.selftext
