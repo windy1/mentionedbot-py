@@ -1,3 +1,6 @@
 /.idea/
 mentionedbot/blacklist.txt
+mentionedbot/config.ini
+mentionedbot/comments_time.txt
+mentionedbot/submissions_time.txt
 *.pyc

@@ -6,6 +6,11 @@ import configparser
 
 
 class MentionedBot:
+    """
+    Base class for mentionedbot defines the basic life cycle for implementations
+    """
+
+    # Constants
     NAME = 'mentionedbot3'
     VERSION = 'dev'
     AUTHOR = '/u/w1ndwak3r'
@@ -19,11 +24,14 @@ class MentionedBot:
                          "^| ^[[Source](" + SOURCE_URL + ")]")
 
     reddit = None
-    db_cur = None
-    db_conn = None
+    start_time = 0
+    already_done = []
 
     CONFIG_FILE = 'config.ini'
 
+    # mysql
+    db_cur = None
+    db_conn = None
     host = None
     port = None
     db = None
@@ -31,11 +39,32 @@ class MentionedBot:
     passwd = None
     table = None
 
-    def __init__(self, quiet=True, log=True):
+    def __init__(self, running_time_file, quiet=True, log=True):
+        """
+        Initializes the bot. Running time file defines where to store the running time of the bot. Quiet disables
+        notifications when a redditor is mentioned. Log defines if mentions should be logged to a MySQL database.
+        """
+        self.running_time_file = running_time_file
         self.quiet = quiet
         self.log = log
 
+    def get_running_time(self):
+        """
+        Returns the total running time this bot has run
+        """
+        with open(self.running_time_file, 'r') as file:
+            return int(file.read().strip())
+
+    def set_running_time(self, t):
+        """
+        Sets the total running time this bot has run
+        """
+        util.write_to_file(self.running_time_file, str(int(t)))
+
     def hello(self):
+        """
+        Prints a welcome message for the bot.
+        """
         print(self.NAME + ' v' + self.VERSION + ' by ' + self.AUTHOR + ' started.')
         print('Source: ' + self.SOURCE_URL)
         if self.quiet:
@@ -45,6 +74,9 @@ class MentionedBot:
             self.connect_to_db()
 
     def read_config(self):
+        """
+        Initializes MySQL values from the config
+        """
         print('Reading config...', end="")
         config = configparser.ConfigParser()
         config.read(self.CONFIG_FILE)
@@ -59,6 +91,9 @@ class MentionedBot:
         print('[DONE]')
 
     def connect_to_db(self):
+        """
+        Connects to the configured MySQL database.
+        """
         self.read_config()
         print('Connecting to database...', end="")
         self.db_conn = pymysql.connect(host=self.host, user=self.user, db=self.db)
@@ -66,10 +101,16 @@ class MentionedBot:
         print('[DONE]')
 
     def disconnect_from_db(self):
+        """
+        Disconnects from the MySQL database
+        """
         self.db_cur.close()
         self.db_conn.close()
 
     def record_mention(self, user, field):
+        """
+        Records a mention in the MySQL database. This will not run if log is false.
+        """
         if not self.log:
             return
 
@@ -90,7 +131,6 @@ class MentionedBot:
         """
         Takes a word that must start with /u/ and attempts to return a Redditor object from it
         """
-
         # Parse the possible username
         username = util.parse_username(word[3:])
         print("\nPossible match: '" + username + "'...", end="")
@@ -110,7 +150,6 @@ class MentionedBot:
         """
         Notifies the specified redditor that they have been mentioned.
         """
-
         if self.quiet:
             return
 
@@ -130,147 +169,174 @@ class MentionedBot:
         self.reddit.send_message(username, 'You have been mentioned in a comment.', msg)
         print('[DONE]')
 
+    def print_time(self):
+        """
+        Prints the current running time as well as the total running time.
+        """
+        now = time.time()
+        running_time = now - self.start_time
+        print('\nCurrent session running time: ' + str(running_time) + 's')
+
+        total = self.get_running_time() + running_time
+        print('Total running time: ' + str(total) + 's')
+        self.set_running_time(total)
+
     def login(self):
+        """
+        Logs into reddit
+        """
         self.hello()
         self.reddit = util.login(self.USER_AGENT)
 
+    def tick(self):
+        """
+        An empty definition for implementations to handle every loop cycle
+        """
+        pass
+
+    def start(self):
+        """
+        Logs in and starts the bot.
+        """
+        self.login()
+        self.start_time = time.time()
+        while True:
+            self.print_time()
+            self.tick()
+
 
 class CommentMentionedBot(MentionedBot):
-    def start(self):
+    def __init__(self, quiet=True, log=True):
+        super().__init__('comments_time.txt', quiet, log)
+
+    def tick(self):
         """
         Reads up to 1000 new comments from /r/all/.
         """
 
-        self.login()
-        already_done = []
+        # Get new comments from /r/all
+        print('\n\nRetrieving comments...', end="")
+        comments = list(self.reddit.get_comments('all', limit=None))
+        print('[DONE]')
 
-        while True:
+        comment_count = comments.__len__()
+        print('Comments to read: ' + str(comment_count))
+        for i in range(0, comment_count):
+            comment = comments[i]
 
-            # Get new comments from /r/all
-            print('\n\nRetrieving comments...', end="")
-            comments = list(self.reddit.get_comments('all', limit=None))
-            print('[DONE]')
+            # Update percent counter
+            pcent = i / float(comment_count) * 100
+            print('\rReading comments: [%d%%]' % pcent, end="")
+            time.sleep(0.1)
 
-            comment_count = comments.__len__()
-            print('Comments to read: ' + str(comment_count))
-            for i in range(0, comment_count):
-                comment = comments[i]
+            # Parse words
+            words = comment.body.split()
+            permalink = None
+            for word in words:
+                if word.startswith('/u/'):
 
-                # Update percent counter
-                pcent = i / float(comment_count) * 100
-                print('\rReading comments: [%d%%]' % pcent, end="")
-                time.sleep(0.1)
+                    # Get the redditor
+                    redditor = self.parse_redditor(word)
+                    if redditor is None:
+                        continue
 
-                # Parse words
-                words = comment.body.split()
-                permalink = None
-                for word in words:
-                    if word.startswith('/u/'):
+                    # Check to see if we've parsed this comment already
+                    permalink = comment.permalink
+                    if permalink in self.already_done:
+                        print('Comment was already read.')
+                        break
 
-                        # Get the redditor
-                        redditor = self.parse_redditor(word)
-                        if redditor is None:
-                            continue
+                    # Notify the mentioned redditor
+                    self.notify('comment', redditor, permalink, comment.body, comment.author.name)
+                    self.record_mention(redditor.name, 'comment')
 
-                        # Check to see if we've parsed this comment already
-                        permalink = comment.permalink
-                        if permalink in already_done:
-                            print('Comment was already read.')
-                            break
+            # permalink will not be None if a user was notified
+            if permalink is not None:
+                self.already_done.append(permalink)
 
-                        # Notify the mentioned redditor
-                        self.notify('comment', redditor, permalink, comment.body, comment.author.name)
-                        self.record_mention(redditor.name, 'comment')
-
-                # permalink will not be None if a user was notified
-                if permalink is not None:
-                    already_done.append(permalink)
-
-            # Wait 30 seconds
-            print('')
-            util.wait(30)
+        # Wait 30 seconds
+        print('')
+        util.wait(30)
 
 
 class SubmissionMentionedBot(MentionedBot):
-    def start(self):
+    def __init__(self, quiet=True, log=True):
+        super().__init__('submissions_time.txt', quiet, log)
+
+    def tick(self):
         """
         Reads submissions from reddit.com/new and check the title and self text for user names.
         """
 
-        self.login()
-        already_done = []
+        # Get new submissions
+        print('\n\nRetrieve submissions...', end="")
+        submissions = list(self.reddit.get_new(limit=None))
+        print('[DONE]')
 
-        while True:
+        submission_count = submissions.__len__()
+        print('Submissions to read: ' + str(submission_count))
+        for i in range(0, submission_count):
+            submission = submissions[i]
 
-            # Get new submissions
-            print('\n\nRetrieve submissions...', end="")
-            submissions = list(self.reddit.get_new(limit=None))
-            print('[DONE]')
+            # Update percent counter
+            pcent = i / float(submission_count) * 100
+            print('\rReading submissions: [%d%%]' % pcent, end="")
+            time.sleep(0.1)
 
-            submission_count = submissions.__len__()
-            print('Submissions to read: ' + str(submission_count))
-            for i in range(0, submission_count):
-                submission = submissions[i]
+            # Check title
+            title = submission.title
+            words = title.split()
+            sub_id = None
+            for word in words:
+                if word.startswith('/u/'):
 
-                # Update percent counter
-                pcent = i / float(submission_count) * 100
-                print('\rReading submissions: [%d%%]' % pcent, end="")
-                time.sleep(0.1)
+                    # Get the redditor
+                    redditor = self.parse_redditor(word)
+                    if redditor is None:
+                        continue
 
-                # Check title
-                title = submission.title
-                words = title.split()
-                sub_id = None
-                for word in words:
-                    if word.startswith('/u/'):
+                    # Check to see if we have parsed this submission already
+                    sub_id = submission.id
+                    if sub_id in self.already_done:
+                        print('Submission was already read.')
+                        break
 
-                        # Get the redditor
-                        redditor = self.parse_redditor(word)
-                        if redditor is None:
-                            continue
+                    # notify the redditor
+                    author = submission.author
+                    if author is None:
+                        author = '[deleted]'
+                    else:
+                        author = author.name
 
-                        # Check to see if we have parsed this submission already
-                        sub_id = submission.id
-                        if sub_id in already_done:
-                            print('Submission was already read.')
-                            break
+                    self.notify('submission title', redditor, submission.short_link, title, author)
+                    self.record_mention(redditor.name, 'title')
 
-                        # notify the redditor
-                        author = submission.author
-                        if author is None:
-                            author = '[deleted]'
-                        else:
-                            author = author.name
+            # check self text
+            body = submission.selftext
+            words = body.split()
+            for word in words:
+                if word.startswith('/u/'):
 
-                        self.notify('submission title', redditor, submission.short_link, title, author)
-                        self.record_mention(redditor.name, 'title')
+                    # Get the redditor
+                    redditor = self.parse_redditor(word)
+                    if redditor is None:
+                        continue
 
-                # check self text
-                body = submission.selftext
-                words = body.split()
-                for word in words:
-                    if word.startswith('/u/'):
+                    # Check to see if we have parsed this submission already
+                    sub_id = submission.id
+                    if sub_id in self.already_done:
+                        print('Submission was already read.')
+                        break
 
-                        # Get the redditor
-                        redditor = self.parse_redditor(word)
-                        if redditor is None:
-                            continue
+                    # notify the redditor
+                    self.notify('submission', redditor, submission.short_link, body, submission.author.name)
+                    self.record_mention(redditor.name, 'selftext')
 
-                        # Check to see if we have parsed this submission already
-                        sub_id = submission.id
-                        if sub_id in already_done:
-                            print('Submission was already read.')
-                            break
+            if sub_id is not None:
+                self.already_done.append(sub_id)
 
-                        # notify the redditor
-                        self.notify('submission', redditor, submission.short_link, body, submission.author.name)
-                        self.record_mention(redditor.name, 'selftext')
-
-                if sub_id is not None:
-                    already_done.append(sub_id)
-
-            print('')
-            util.wait(30)
+        print('')
+        util.wait(30)
 
 
 def main():
