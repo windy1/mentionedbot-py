@@ -1,10 +1,12 @@
 import time
 import util
 import argparse
+import pymysql
+import configparser
 
 
 class MentionedBot:
-    NAME = 'mentionedbot2'
+    NAME = 'mentionedbot3'
     VERSION = 'dev'
     AUTHOR = '/u/w1ndwak3r'
     SOURCE_URL = 'https://github.com/windy1/mentionedbot-py'
@@ -17,6 +19,72 @@ class MentionedBot:
                          "^| ^[[Source](" + SOURCE_URL + ")]")
 
     reddit = None
+    db_cur = None
+    db_conn = None
+
+    CONFIG_FILE = 'config.ini'
+
+    host = None
+    port = None
+    db = None
+    user = None
+    passwd = None
+    table = None
+
+    def __init__(self, quiet=True, log=True):
+        self.quiet = quiet
+        self.log = log
+
+    def hello(self):
+        print(self.NAME + ' v' + self.VERSION + ' by ' + self.AUTHOR + ' started.')
+        print('Source: ' + self.SOURCE_URL)
+        if self.quiet:
+            print('----- QUIET MODE ENABLED -----')
+        if self.log:
+            print('-----  LOGGING ENABLED   -----')
+            self.connect_to_db()
+
+    def read_config(self):
+        print('Reading config...', end="")
+        config = configparser.ConfigParser()
+        config.read(self.CONFIG_FILE)
+        mysql = config['mysql']
+        self.host = mysql['host']
+        self.port = int(mysql['port'])
+        self.db = mysql['db']
+        self.user = mysql['user']
+        self.passwd = mysql['pass']
+        self.passwd = None if self.passwd is 'None' else self.passwd
+        self.table = mysql['table']
+        print('[DONE]')
+
+    def connect_to_db(self):
+        self.read_config()
+        print('Connecting to database...', end="")
+        self.db_conn = pymysql.connect(host=self.host, user=self.user, db=self.db)
+        self.db_cur = self.db_conn.cursor()
+        print('[DONE]')
+
+    def disconnect_from_db(self):
+        self.db_cur.close()
+        self.db_conn.close()
+
+    def record_mention(self, user, field):
+        if not self.log:
+            return
+
+        print('Recording mention...', end="")
+        user = user.lower()
+        results = self.db_cur.execute("SELECT * FROM %s WHERE user = '%s'" % (self.table, user))
+        if results == 0:
+            stmt = "INSERT INTO %s VALUES ('%s', 0, 0, 0)" % (self.table, user)
+            self.db_cur.execute(stmt)
+            self.db_conn.commit()
+
+        stmt = "UPDATE %s SET mentions_%s = mentions_%s + 1 WHERE user = '%s'" % (self.table, field, field, user)
+        self.db_cur.execute(stmt)
+        self.db_conn.commit()
+        print('[DONE]')
 
     def parse_redditor(self, word):
         """
@@ -43,6 +111,9 @@ class MentionedBot:
         Notifies the specified redditor that they have been mentioned.
         """
 
+        if self.quiet:
+            return
+
         if util.is_ignored(redditor):
             return
 
@@ -59,7 +130,8 @@ class MentionedBot:
         self.reddit.send_message(username, 'You have been mentioned in a comment.', msg)
         print('[DONE]')
 
-    def start(self):
+    def login(self):
+        self.hello()
         self.reddit = util.login(self.USER_AGENT)
 
 
@@ -69,7 +141,7 @@ class CommentMentionedBot(MentionedBot):
         Reads up to 1000 new comments from /r/all/.
         """
 
-        super().start()
+        self.login()
         already_done = []
 
         while True:
@@ -108,6 +180,7 @@ class CommentMentionedBot(MentionedBot):
 
                         # Notify the mentioned redditor
                         self.notify('comment', redditor, permalink, comment.body, comment.author.name)
+                        self.record_mention(redditor.name, 'comment')
 
                 # permalink will not be None if a user was notified
                 if permalink is not None:
@@ -124,7 +197,7 @@ class SubmissionMentionedBot(MentionedBot):
         Reads submissions from reddit.com/new and check the title and self text for user names.
         """
 
-        super().start()
+        self.login()
         already_done = []
 
         while True:
@@ -170,6 +243,7 @@ class SubmissionMentionedBot(MentionedBot):
                             author = author.name
 
                         self.notify('submission title', redditor, submission.short_link, title, author)
+                        self.record_mention(redditor.name, 'title')
 
                 # check self text
                 body = submission.selftext
@@ -190,6 +264,7 @@ class SubmissionMentionedBot(MentionedBot):
 
                         # notify the redditor
                         self.notify('submission', redditor, submission.short_link, body, submission.author.name)
+                        self.record_mention(redditor.name, 'selftext')
 
                 if sub_id is not None:
                     already_done.append(sub_id)
@@ -202,12 +277,15 @@ def main():
     parser = argparse.ArgumentParser(description='Reddit bot for sending notifications to mentioned users.')
     parser.add_argument('-c', '--comments', help='Read comments', required=False, action='store_true')
     parser.add_argument('-s', '--submissions', help='Read submissions', required=False, action='store_true')
+    parser.add_argument('-q', '--quiet', help='Do not notify the mentioned redditors', required=False,
+                        action='store_true')
+    parser.add_argument('-l', '--log', help='Logs the mentions.', required=False, action='store_true')
     args = parser.parse_args()
 
     if args.comments:
-        CommentMentionedBot().start()
+        CommentMentionedBot(quiet=args.quiet, log=args.log).start()
     elif args.submissions:
-        SubmissionMentionedBot().start()
+        SubmissionMentionedBot(quiet=args.quiet, log=args.log).start()
     else:
         print('Provide either -c or -s')
 
