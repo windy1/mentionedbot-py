@@ -18,7 +18,7 @@ def is_ignored(redditor):
     return False
 
 
-def login(user_agent):
+def login(user_agent, auth=True):
     """
     Repeatably tries to log in to reddit with user input until successful.
     """
@@ -26,7 +26,9 @@ def login(user_agent):
         try:
             print(user_agent)
             r = praw.Reddit(user_agent)
-            r.login()
+            if auth:
+                print('logging in')
+                r.login()
             return r
         except praw.errors.InvalidUserPass:
             print('Invalid username or password.')

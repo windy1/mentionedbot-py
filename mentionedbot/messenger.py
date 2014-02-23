@@ -180,12 +180,12 @@ class MentionedBot:
         print('Total running time: ' + str(total) + 's')
         self.set_running_time(total)
 
-    def login(self):
+    def login(self, auth=True):
         """
         Logs into reddit
         """
         self.hello()
-        self.reddit = util.login(self.USER_AGENT)
+        self.reddit = util.login(self.USER_AGENT, auth)
 
     def tick(self):
         """
@@ -197,7 +197,7 @@ class MentionedBot:
         """
         Logs in and starts the bot.
         """
-        self.login()
+        self.login(not self.quiet)
         self.start_time = time.time()
         while True:
             self.print_time()
