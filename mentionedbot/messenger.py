@@ -118,10 +118,12 @@ class MentionedBot:
         user = user.lower()
         results = self.db_cur.execute("SELECT * FROM %s WHERE user = '%s'" % (self.table, user))
         if results == 0:
+            # Create the user column if they haven't been previously mentioned
             stmt = "INSERT INTO %s VALUES ('%s', 0, 0, 0)" % (self.table, user)
             self.db_cur.execute(stmt)
             self.db_conn.commit()
 
+        # Increment the proper field
         stmt = "UPDATE %s SET mentions_%s = mentions_%s + 1 WHERE user = '%s'" % (self.table, field, field, user)
         self.db_cur.execute(stmt)
         self.db_conn.commit()
@@ -150,10 +152,7 @@ class MentionedBot:
         """
         Notifies the specified redditor that they have been mentioned.
         """
-        if self.quiet:
-            return
-
-        if util.is_ignored(redditor):
+        if self.quiet or util.is_ignored(redditor):
             return
 
         quote = util.quote(body)

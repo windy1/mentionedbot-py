@@ -17,6 +17,9 @@ class Blacklister:
     reddit = None
 
     def ignore(self, redditor):
+        """
+        Adds the specified redditor to the blacklist if they are not already on it.
+        """
         name = redditor.name.lower()
         if name in self.blacklist:
             print("'" + name + "' already blacklisted.")
@@ -28,6 +31,9 @@ class Blacklister:
         print("'" + name + "' ignored.")
 
     def unignore(self, redditor):
+        """
+        Removes the specified redditor from the blacklist if they are on it.
+        """
         name = redditor.name.lower()
         if name not in self.blacklist:
             print("'" + name + "' is not blacklisted.")
@@ -39,6 +45,9 @@ class Blacklister:
         print("'" + name + "' unignored.")
 
     def start(self):
+        """
+        Starts the blacklister process.
+        """
         # Load blacklist
         print('Loading blacklist...'),
         self.blacklist = util.load_list(util.BLACKLIST_FILE, ',')
