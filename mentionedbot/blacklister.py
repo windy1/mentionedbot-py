@@ -44,6 +44,37 @@ class Blacklister:
         self.reddit.send_message(name, MentionedBot.NAME, self.UNIGNORED_NOTIFICATION)
         print("'" + name + "' unignored.")
 
+    def tick(self):
+        # Retrieve unread messages
+        print('\n\nRetrieving unread messages...', end="")
+        messages = list(self.reddit.get_unread(limit=None))
+        print('[DONE]')
+
+        # Check messages for ignorances
+        message_count = messages.__len__()
+        print('Unread messages: ' + str(message_count))
+        for i in range(0, message_count):
+            message = messages[i]
+
+            # Update percent counter
+            pcent = i / float(message_count) * 100
+            print('\rReading unread messages: [%d%%]' % pcent, end="")
+            time.sleep(0.1)
+
+            # Read the message
+            body = str(message.body.strip().lower())
+            if body == self.KEYWORD_IGNORE:
+                self.ignore(message.author)
+            elif body == self.KEYWORD_UNIGNORE:
+                self.unignore(message.author)
+
+            # Mark as read
+            message.mark_as_read()
+
+        # Sleep for 30 seconds
+        print('')
+        util.wait(30)
+
     def start(self):
         """
         Starts the blacklister process.
@@ -57,36 +88,10 @@ class Blacklister:
         self.reddit = util.login(MentionedBot.USER_AGENT)
 
         while True:
-
-            # Retrieve unread messages
-            print('\n\nRetrieving unread messages...', end="")
-            messages = list(self.reddit.get_unread(limit=None))
-            print('[DONE]')
-
-            # Check messages for ignorances
-            message_count = messages.__len__()
-            print('Unread messages: ' + str(message_count))
-            for i in range(0, message_count):
-                message = messages[i]
-
-                # Update percent counter
-                pcent = i / float(message_count) * 100
-                print('\rReading unread messages: [%d%%]' % pcent, end="")
-                time.sleep(0.1)
-
-                # Read the message
-                body = str(message.body.strip().lower())
-                if body == self.KEYWORD_IGNORE: 
-                    self.ignore(message.author)
-                elif body == self.KEYWORD_UNIGNORE:
-                    self.unignore(message.author)
-
-                # Mark as read
-                message.mark_as_read()
-
-            # Sleep for 30 seconds
-            print('')
-            util.wait(30)
+            try:
+                self.tick()
+            except Exception as e:
+                print(e)
 
 
 if __name__ == '__main__':

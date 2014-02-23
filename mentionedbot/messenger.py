@@ -201,7 +201,10 @@ class MentionedBot:
         self.start_time = time.time()
         while True:
             self.print_time()
-            self.tick()
+            try:
+                self.tick()
+            except Exception as e:
+                print(e)
 
 
 class CommentMentionedBot(MentionedBot):
