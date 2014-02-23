@@ -27,7 +27,6 @@ def login(user_agent, auth=True):
             print(user_agent)
             r = praw.Reddit(user_agent)
             if auth:
-                print('logging in')
                 r.login()
             return r
         except praw.errors.InvalidUserPass:
